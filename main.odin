@@ -2,10 +2,11 @@ package main
 
 import    "vendor:glfw"
 import gl "vendor:opengl"
+import la "core:math/linalg"
 
 resize_callback :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
 	gl.Viewport(0, 0, width, height)
-	//projection = la.matrix_ortho3d(0, f32(width), f32(height), 0, -1, 1, false)
+	projection = la.matrix_ortho3d(0, f32(width), f32(height), 0, -1, 1, false)
 }
 
 main :: proc() {

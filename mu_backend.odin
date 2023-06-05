@@ -33,7 +33,7 @@ ctx: mu.Context
 
 push_quad :: proc(dst, src: mu.Rect, color: mu.Color) {
     if buf_idx == BUFFER do flush()
-    
+
 	vert_idx  := buf_idx * 4
 	elem_idx  := buf_idx * 4
 	index_idx := buf_idx * 6
@@ -92,11 +92,14 @@ draw_icon :: proc(id: int, rect: mu.Rect, color: mu.Color) {
     push_quad({x, y, src.w, src.h}, src, color)
 }
 
-flush :: proc() {
+flush :: proc(loc := #caller_location) {
     if buf_idx == 0 do return
     defer buf_idx = 0
-    //projection = la.mat4(1)
-    //gl.UniformMatrix4fv(gl.GetUniformLocation(vs, "projection"), 1, gl.FALSE, cast([^]f32)&projection)
+
+    gl.UseProgram(prog)
+
+    gl.Uniform1i(gl.GetUniformLocation(prog, "atlas_texture"), 0)
+    gl.UniformMatrix4fv(gl.GetUniformLocation(prog, "projection"), 1, gl.FALSE, cast([^]f32)&projection)
 
     verts := vertices[:buf_idx * 4]
     indxs := indices[:buf_idx * 6]
@@ -104,6 +107,7 @@ flush :: proc() {
     modify_ebo(ebo, indxs)
 
     // 1. Bind texture
+    gl.ActiveTexture(gl.TEXTURE0);
     gl.BindTexture(gl.TEXTURE_2D, tex)
 
     // 2. Bind VAO
@@ -113,6 +117,8 @@ flush :: proc() {
     //gl.DrawElementsInstancedBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 1, 0)
     gl.DrawElementsBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 0)
     //gl.DrawElements(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, &indices)
+
+    gl.debug_helper(loc, 0)
 }
 
 init_mu_backend :: proc(ctx: ^mu.Context, loc := #caller_location) {
@@ -196,8 +202,10 @@ layout (location = 2) in vec2 tex;
 out vec4 vertex_color;
 out vec2 tex_coords;
 
+uniform mat4 projection;
+
 void main() {
-    gl_Position  = vec4(pos, 0.0, 1.0);
+    gl_Position  = projection * vec4(pos, 0.0, 1.0);
     vertex_color = col;
     tex_coords   = tex; 
 }`

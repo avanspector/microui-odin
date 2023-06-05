@@ -43,8 +43,6 @@ init_triangle_test :: proc() {
     vs   = create_vertex_shader(&vertex_shader)
     fs   = create_fragment_shader(&fragment_shader)
     prog = create_shader_program(vs, fs)
-
-    bind_texture_to_shader(fs, "atlas_texture")
 }
 
 draw_triangle_test :: proc() {
