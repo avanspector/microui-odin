@@ -6,41 +6,41 @@ import gl "vendor:opengl"
 import mu "vendor:microui"
 
 mouse_scroll_callback :: proc "c" (window: glfw.WindowHandle, xoff, yoff: f64) {
-	context = runtime.default_context()
-	mu.input_scroll(&ctx, cast(i32)xoff, cast(i32)yoff * -5)
+    context = runtime.default_context()
+    mu.input_scroll(&ctx, cast(i32)xoff, cast(i32)yoff * -5)
 }
 
 mouse_move_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
-	context = runtime.default_context()
-	mu.input_mouse_move(&ctx, cast(i32)xpos, cast(i32)ypos)
+    context = runtime.default_context()
+    mu.input_mouse_move(&ctx, cast(i32)xpos, cast(i32)ypos)
 }
 
 mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
-	context = runtime.default_context()
-	
-	mu_button: mu.Mouse
-	xpos, ypos := glfw.GetCursorPos(window)
+    context = runtime.default_context()
+    
+    mu_button: mu.Mouse
+    xpos, ypos := glfw.GetCursorPos(window)
 
-	switch button {
-	case glfw.MOUSE_BUTTON_LEFT:   mu_button = .LEFT
-	case glfw.MOUSE_BUTTON_RIGHT:  mu_button = .RIGHT
-	case glfw.MOUSE_BUTTON_MIDDLE: mu_button = .MIDDLE
-	}
+    switch button {
+    case glfw.MOUSE_BUTTON_LEFT:   mu_button = .LEFT
+    case glfw.MOUSE_BUTTON_RIGHT:  mu_button = .RIGHT
+    case glfw.MOUSE_BUTTON_MIDDLE: mu_button = .MIDDLE
+    }
 
-	switch action {
-	case glfw.PRESS:   mu.input_mouse_down(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
-	case glfw.RELEASE: mu.input_mouse_up(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
-	}
+    switch action {
+    case glfw.PRESS:   mu.input_mouse_down(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
+    case glfw.RELEASE: mu.input_mouse_up(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
+    }
 }
 
 framebuffer_resize_callback :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
-	gl.Viewport(0, 0, width, height)
-	vp_width, vp_height = width, height
+    gl.Viewport(0, 0, width, height)
+    vp_width, vp_height = width, height
 }
 
 main :: proc() {
-	if glfw.Init() == 0 do return
-	defer glfw.Terminate()
+    if glfw.Init() == 0 do return
+    defer glfw.Terminate()
 
     glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3)
@@ -60,15 +60,15 @@ main :: proc() {
 
     init_mu_backend(&ctx)
 
-	for !glfw.WindowShouldClose(window) {
-		defer { glfw.SwapBuffers(window); glfw.PollEvents() }
+    for !glfw.WindowShouldClose(window) {
+        defer { glfw.SwapBuffers(window); glfw.PollEvents() }
 
-		gl.ClearColor(0.2, 0.3, 0.3, 1.0);
-		gl.Clear(gl.COLOR_BUFFER_BIT);
+        gl.ClearColor(0.2, 0.3, 0.3, 1.0);
+        gl.Clear(gl.COLOR_BUFFER_BIT);
 
-		mu_test_window(&ctx)
+        mu_test_window(&ctx)
 
-		mu_draw_events(&ctx)
+        mu_draw_events(&ctx)
 
-	}	
+    }   
 }

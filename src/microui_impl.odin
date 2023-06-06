@@ -7,9 +7,9 @@ import gl  "vendor:opengl"
 import mu  "vendor:microui"
 
 Vertex :: struct {
-	pos: glm.vec2,
-	col: glm.vec4,
-	tex: glm.vec2,
+    pos: glm.vec2,
+    col: glm.vec4,
+    tex: glm.vec2,
 }
 
 BUFFER :: 128 * 128
@@ -36,11 +36,11 @@ ctx: mu.Context
 push_quad_impl :: proc(dst, src: mu.Rect, color: mu.Color) {
     if buf_idx == BUFFER do flush_impl()
 
-	vert_idx  := buf_idx * 4
-	index_idx := buf_idx * 6
-	buf_idx   += 1
+    vert_idx  := buf_idx * 4
+    index_idx := buf_idx * 6
+    buf_idx   += 1
 
-	x := f32(src.x) / mu.DEFAULT_ATLAS_WIDTH
+    x := f32(src.x) / mu.DEFAULT_ATLAS_WIDTH
     y := f32(src.y) / mu.DEFAULT_ATLAS_HEIGHT
     w := f32(src.w) / mu.DEFAULT_ATLAS_WIDTH
     h := f32(src.h) / mu.DEFAULT_ATLAS_HEIGHT
@@ -201,7 +201,7 @@ clip_rect_impl :: proc(rect: mu.Rect) {
 
 
 when ODIN_ARCH == .amd64 || ODIN_ARCH == .i386 {
-	vertex_shader: cstring = 
+    vertex_shader: cstring = 
 `#version 330 core
 layout (location = 0) in vec2 pos;
 layout (location = 1) in vec4 col;
@@ -217,7 +217,7 @@ void main() {
     vertex_color = col;
     tex_coords   = tex; 
 }`
-	fragment_shader: cstring = 
+    fragment_shader: cstring = 
 `#version 330 core
 in vec4 vertex_color;
 in vec2 tex_coords;
@@ -230,7 +230,7 @@ void main() {
     frag_color = texture(atlas_texture, tex_coords) * vertex_color;
 }`
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64 {
-	vertex_shader: cstring = 
+    vertex_shader: cstring = 
 `#version 300 es
 layout (location = 0) in vec2 pos;
 layout (location = 1) in vec4 col;
