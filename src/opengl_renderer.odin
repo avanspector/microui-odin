@@ -1,3 +1,4 @@
+//+build i386, amd64
 package main
 
 import la "core:math/linalg/glsl"
@@ -9,7 +10,7 @@ create_vbo :: proc(vert_data: []Vertex) -> (buf_id: u32) {
 	using gl
 	GenBuffers(1, &buf_id)
 	BindBuffer(ARRAY_BUFFER, buf_id)
-	//defer BindBuffer(ARRAY_BUFFER, 0)
+	defer BindBuffer(ARRAY_BUFFER, 0)
 
 	BufferData(ARRAY_BUFFER, len(vert_data) * size_of(Vertex), raw_data(vert_data), DYNAMIC_DRAW)
 	VertexAttribPointer(0, len(Vertex{}.pos), FLOAT, FALSE, size_of(Vertex), offset_of(Vertex, pos))
@@ -25,7 +26,7 @@ create_vbo :: proc(vert_data: []Vertex) -> (buf_id: u32) {
 modify_vbo :: proc(buf_id: u32, vert_data: []Vertex) {
 	using gl
 	BindBuffer(ARRAY_BUFFER, buf_id)
-	//defer BindBuffer(ARRAY_BUFFER, 0)
+	defer BindBuffer(ARRAY_BUFFER, 0)
 
 	BufferSubData(ARRAY_BUFFER, 0, len(vert_data) * size_of(Vertex), raw_data(vert_data))
 }
@@ -56,23 +57,6 @@ destroy_buffer :: proc(buf_id: ^u32) {
 }
 
 // Texture procs
-
-create_alpha_texture :: proc(tex_data: []byte, width, height: i32) -> (tex_id: u32) {
-	using gl
-	GenTextures(1, &tex_id)
-	BindTexture(TEXTURE_2D, tex_id)
-	defer BindTexture(TEXTURE_2D, 0)
-		
-	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_S, REPEAT)
-    TexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, REPEAT)
-    TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR_MIPMAP_LINEAR)
-    TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR)
-
-	TexImage2D(TEXTURE_2D, 0, ALPHA, width, height, 0, ALPHA, UNSIGNED_BYTE, raw_data(tex_data))
-	GenerateMipmap(TEXTURE_2D)
-	
-	return tex_id
-}
 
 create_rgba_texture :: proc(tex_data: []byte, width, height: i32) -> (tex_id: u32) {
 	using gl
