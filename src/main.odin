@@ -61,7 +61,7 @@ main :: proc() {
     init_mu_backend(&ctx)
 
 	for !glfw.WindowShouldClose(window) {
-		defer { glfw.SwapBuffers(window); glfw.PollEvents()	}
+		defer { glfw.SwapBuffers(window); glfw.PollEvents() }
 
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0);
 		gl.Clear(gl.COLOR_BUFFER_BIT);

@@ -1,10 +1,10 @@
 package main
 
-import    "core:slice"
+import     "core:slice"
 import glm "core:math/linalg/glsl"
-import la "core:math/linalg"
-import gl "vendor:opengl"
-import mu "vendor:microui"
+import la  "core:math/linalg"
+import gl  "vendor:opengl"
+import mu  "vendor:microui"
 
 Vertex :: struct {
 	pos: glm.vec2,
