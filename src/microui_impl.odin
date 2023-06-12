@@ -1,6 +1,6 @@
 package main
 
-import     "core:slice"
+import "core:slice"
 import glm "core:math/linalg/glsl"
 import la  "core:math/linalg"
 import gl  "vendor:opengl"
@@ -14,20 +14,19 @@ Vertex :: struct {
 
 BUFFER :: 128 * 128
 
-// Uniforms
-modelview, projection: glm.mat4
-
 // Buffers
 vertices : [BUFFER * 4]Vertex
 indices  : [BUFFER * 6]u32
 buf_idx  : i32
 
-// Buffer handles
-vao, vbo, ebo,
+// Bind group
+vao,
 // Shader handles
-vs, fs, prog,
-// Texture handles
-tex: u32
+prog: u32
+
+vbo_buf, ebo_buf: Handle(Buffer)
+tex_buf: Handle(Texture)
+shader: Handle(Shader)
 
 vp_width, vp_height: i32 = 1024, 768
 
@@ -58,7 +57,6 @@ push_quad_impl :: proc(dst, src: mu.Rect, color: mu.Color) {
     vertices[vert_idx + 3].pos.xy = { x + w, y + h }
 
     color4f := glm.vec4{ f32(color.r), f32(color.g), f32(color.b), f32(color.a) } / 255
-
     vertices[vert_idx + 0].col = color4f
     vertices[vert_idx + 1].col = color4f
     vertices[vert_idx + 2].col = color4f
@@ -96,51 +94,71 @@ draw_icon_impl :: proc(id: int, rect: mu.Rect, color: mu.Color) {
 }
 
 flush_impl :: proc() {
+    using gl
     if buf_idx == 0 do return
     defer buf_idx = 0
 
-    gl.UseProgram(prog)
+    UseProgram(prog)
 
-    projection = la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false)
-    gl.Uniform1i(gl.GetUniformLocation(prog, "atlas_texture"), 0)
-    gl.UniformMatrix4fv(gl.GetUniformLocation(prog, "projection"), 1, gl.FALSE, cast([^]f32)&projection)
+    projection := la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false)
+    Uniform1i(GetUniformLocation(prog, "atlas_texture"), 0)
+    UniformMatrix4fv(GetUniformLocation(prog, "projection"), 1, FALSE, cast([^]f32)&projection)
 
     verts := vertices[:buf_idx * 4]
     indxs := indices[:buf_idx * 6]
-    modify_vbo(vbo, verts)
-    modify_ebo(ebo, indxs)
+    modify_buffer(vbo_buf, slice.to_bytes(verts))
+    modify_buffer(ebo_buf, slice.to_bytes(indxs))
 
     // 1. Bind texture
-    gl.ActiveTexture(gl.TEXTURE0);
-    gl.BindTexture(gl.TEXTURE_2D, tex)
+    BindTexture(TEXTURE_2D, texture_ids[tex_buf])
 
     // 2. Bind VAO
-    gl.BindVertexArray(vao)
+    BindVertexArray(vao)
 
     // 3. Draw
     //gl.DrawElementsInstancedBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 1, 0)
-    gl.DrawElementsBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 0)
+    DrawElementsBaseVertex(TRIANGLES, buf_idx * 6, UNSIGNED_INT, nil, 0)
 }
 
 init_mu_backend :: proc(ctx: ^mu.Context) {
     using gl
 
     Enable(BLEND)
-    BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
-    Enable(SCISSOR_TEST)
+    //BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
+    //BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA)
+    BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE)
+
     Disable(CULL_FACE)
     Disable(DEPTH_TEST)
+    DepthMask(FALSE)
 
     mu.init(ctx)
-    //ctx._style.colors[.WINDOW_BG].a = 255
-    ctx.text_width, ctx.text_height = mu.default_atlas_text_width, mu.default_atlas_text_height
+    ctx.text_width  = mu.default_atlas_text_width
+    ctx.text_height = mu.default_atlas_text_height
 
     GenVertexArrays(1, &vao)
     BindVertexArray(vao)
     defer BindVertexArray(0)
 
-    vbo = create_vbo(vertices[:])
-    ebo = create_ebo(indices[:])
+    vbo_buf = create_buffer({
+        data = slice.to_bytes(vertices[:]),
+        byte_width = size_of(Vertex),
+        attributes = {
+            { offset = 0,  format = .RG32_FLOAT },
+            { offset = 8,  format = .RGBA32_FLOAT },
+            { offset = 24, format = .RG32_FLOAT },
+        },
+        usage = .VERTEX,
+        memory_model = .GPU_CPU,
+    })
+
+    ebo_buf = create_buffer({
+        data = slice.to_bytes(indices[:]),
+        byte_width = size_of(u32),
+        attributes = {},
+        usage = .INDEX,
+        memory_model = .GPU_CPU,
+    })
 
     pixels := make([][4]byte, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
     defer delete(pixels)
@@ -149,33 +167,50 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
         pixels[i] = { 255, 255, 255, alpha }
     }
 
-    tex = create_rgba_texture(slice.to_bytes(pixels), mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT)
+    tex_buf = create_texture({
+        data = slice.to_bytes(pixels),
+        dimensions = { mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT },
+        format = .RGBA8_UNORM,
+    })
 
-    vs   = create_vertex_shader(&vertex_shader)
-    fs   = create_fragment_shader(&fragment_shader)
-    prog = create_shader_program(vs, fs)
+    shader, prog = create_shader({
+        vs_source = vertex_shader, 
+        ps_source = fragment_shader,
+    })
 }
 
 mu_test_window :: proc(ctx: ^mu.Context) {
     mu.begin(ctx)
     defer mu.end(ctx)
 
-    if mu.window(ctx, "My Window", { 10, 10, 290, 206 }) {
-        mu.layout_row(ctx, []i32{ 60, -1 })
+    panel_width: i32 = 270
+    wind := mu.get_container(ctx, "My Window")
+    wind.rect = { vp_width - panel_width, 0, panel_width, vp_height }
 
-        mu.label(ctx, "First:");
-        if .SUBMIT in mu.button(ctx, "Button1") {
+    if mu.window(ctx, "My Window", {}, { .NO_CLOSE, .NO_RESIZE, .NO_TITLE }) {
+        mu.layout_height(ctx, 50)
+
+        if mu.layout_column(ctx) {
+            if .SUBMIT in mu.button(ctx, "Open", mu.Icon('F')) {}
+            if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
         }
 
-        mu.label(ctx, "Second:");
-        if .SUBMIT in mu.button(ctx, "Button2") {
-            mu.open_popup(ctx, "My Popup")
+        if mu.layout_column(ctx) {
+            if .SUBMIT in mu.button(ctx, "Open", mu.Icon('F')) {}
+            if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
         }
 
-        if mu.popup(ctx, "My Popup") {
-            mu.label(ctx, "Hello world!")
+        if mu.layout_column(ctx) {
+            if .SUBMIT in mu.button(ctx, "Open", mu.Icon('F')) {}
+            if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
         }
-
+        
+        mu.layout_set_next(ctx, { 0, vp_height - 60, 0, 0 }, true)
+        if mu.layout_column(ctx) {
+            mu.layout_height(ctx, 20)
+            if .SUBMIT in mu.button(ctx, "Open", mu.Icon('F')) {}
+            if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
+        }
     }
 }
 
@@ -196,7 +231,6 @@ mu_draw_events :: proc(ctx: ^mu.Context) {
 
 clip_rect_impl :: proc(rect: mu.Rect) {
     flush_impl()
-    gl.Scissor(rect.x, vp_height - (rect.y + rect.h), rect.w, rect.h)
 }
 
 
@@ -228,6 +262,7 @@ uniform sampler2D atlas_texture;
 
 void main() {
     frag_color = texture(atlas_texture, tex_coords) * vertex_color;
+    if (frag_color.a == 0.0) discard;
 }`
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64 {
     vertex_shader: cstring = 

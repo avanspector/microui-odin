@@ -1,7 +1,7 @@
 package main
 
-import    "core:runtime"
-import    "vendor:glfw"
+import "core:runtime"
+import "vendor:glfw"
 import gl "vendor:opengl"
 import mu "vendor:microui"
 
@@ -17,16 +17,14 @@ mouse_move_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
 
 mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
     context = runtime.default_context()
-    
-    mu_button: mu.Mouse
     xpos, ypos := glfw.GetCursorPos(window)
+    mu_button: mu.Mouse
 
     switch button {
     case glfw.MOUSE_BUTTON_LEFT:   mu_button = .LEFT
     case glfw.MOUSE_BUTTON_RIGHT:  mu_button = .RIGHT
     case glfw.MOUSE_BUTTON_MIDDLE: mu_button = .MIDDLE
     }
-
     switch action {
     case glfw.PRESS:   mu.input_mouse_down(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
     case glfw.RELEASE: mu.input_mouse_up(&ctx, cast(i32)xpos, cast(i32)ypos, mu_button)
@@ -57,13 +55,14 @@ main :: proc() {
     glfw.SetMouseButtonCallback(window, mouse_button_callback)
     glfw.SetCursorPosCallback(window, mouse_move_callback)
     glfw.SetScrollCallback(window, mouse_scroll_callback)
+    glfw.SwapInterval(1)
 
     init_mu_backend(&ctx)
 
     for !glfw.WindowShouldClose(window) {
         defer { glfw.SwapBuffers(window); glfw.PollEvents() }
 
-        gl.ClearColor(0.2, 0.3, 0.3, 1.0);
+        gl.ClearColor(0.8, 0.1, 0.3, 1.0);
         gl.Clear(gl.COLOR_BUFFER_BIT);
 
         mu_test_window(&ctx)
