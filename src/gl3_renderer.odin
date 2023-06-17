@@ -16,7 +16,7 @@ gl_data_formats := [Data_Format]u32 {
 @(private="file")
 gl_memory_model := [Memory_Model]u32 {
 	.GPU     = gl.STATIC_DRAW, 
-	.GPU_CPU = gl.DYNAMIC_DRAW,
+	.GPU_CPU = gl.DYNAMIC_DRAW, // HINT: Maybe try STREAM_DRAW?
 }
 @(private="file")
 gl_buffer_usage := [Buffer_Usage]u32 {
@@ -35,46 +35,51 @@ bind_group_ids: map[Handle(Bind_Group)]u32
 
 // Buffer procs
 
-create_buffer :: proc(using buffer: Buffer) -> Handle(Buffer) {
+create_buffer :: proc(buffer: Buffer) -> Handle(Buffer) {
 	using gl
+	buffer_usage := gl_buffer_usage[buffer.usage]
+
 	id: u32
 	GenBuffers(1, &id)
-	BindBuffer(gl_buffer_usage[usage], id)
-	defer BindBuffer(gl_buffer_usage[usage], 0)
+	BindBuffer(buffer_usage, id)
+	defer BindBuffer(buffer_usage, 0)
+	{
+		using buffer
 
-	BufferData(gl_buffer_usage[usage], 
+		BufferData(buffer_usage, 
 			len(initial_data) if len(initial_data) > 0 else int(byte_width), 
 			raw_data(initial_data), gl_memory_model[memory_model])
 
-	if usage == .UNIFORM {
-		BindBufferRange(gl_buffer_usage[usage], 0, id, 0, int(byte_width))
+		if usage == .UNIFORM {
+			BindBufferRange(buffer_usage, 0, id, 0, int(byte_width))
+		}
 	}
-
-	append(&buffers_pool, buffer)
-	handle := Handle(Buffer){ len(buffers_pool) - 1 }
+	handle := add_resource(buffer)
 	buffer_ids[handle] = id
 	return handle
 }
 
 modify_buffer :: proc(buf: Handle(Buffer), new_data: []u8) {
-	assert(buf.index >= 0 && buf.index < len(buffers_pool))
 	using gl
-	using buffer := &buffers_pool[buf.index]
+	
+	buffer := get_resource(buf)
+	if buffer == nil do return
+	buffer_usage := gl_buffer_usage[buffer.usage]
 
 	id := buffer_ids[buf]
-	BindBuffer(gl_buffer_usage[usage], id)
-	// Never unbind EBO before VAO in OpenGL
-	defer if usage != .INDEX { 
-		BindBuffer(gl_buffer_usage[usage], 0)
+	BindBuffer(buffer_usage, id)
+	defer if buffer.usage != .INDEX { // HINT: Never unbind EBO before VAO in OpenGL.
+		BindBuffer(buffer_usage, 0)
 	}
 
-	BufferSubData(gl_buffer_usage[usage], 0, len(new_data), raw_data(new_data))
+	BufferSubData(buffer_usage, 0, len(new_data), raw_data(new_data))
 }
 
 // Texture procs
 
-create_texture :: proc(using texture: Texture) -> Handle(Texture) {
+create_texture :: proc(texture: Texture) -> Handle(Texture) {
 	using gl
+
 	id: u32
 	GenTextures(1, &id)
 	BindTexture(TEXTURE_2D, id)
@@ -84,22 +89,22 @@ create_texture :: proc(using texture: Texture) -> Handle(Texture) {
 	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, REPEAT)
 	TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR_MIPMAP_LINEAR)
 	TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR)
-
+	
 	data_type: u32
-	#partial switch format {
+	#partial switch texture.format {
 	case .RGBA8_UNORM:                data_type = UNSIGNED_BYTE
 	case .RGB32_FLOAT, .RGBA32_FLOAT: data_type = FLOAT
 	case .RGB32_UINT,  .RGBA32_UINT:  data_type = UNSIGNED_INT
 	}
-
-	TexImage2D(TEXTURE_2D, 0, i32(gl_data_formats[format]), dimensions.x, dimensions.y, 
-				0, gl_data_formats[format], data_type, raw_data(initial_data))
+	
+	data_format := gl_data_formats[texture.format]
+	TexImage2D(TEXTURE_2D, 0, i32(data_format), 
+			texture.dimensions.x, texture.dimensions.y, 0,
+			data_format, data_type, raw_data(texture.initial_data))
 	GenerateMipmap(TEXTURE_2D)
 
-	append(&textures_pool, texture)
-	handle := Handle(Texture){ len(textures_pool) - 1 }
+	handle := add_resource(texture)
 	texture_ids[handle] = id
-
 	return handle
 }
 
@@ -107,10 +112,10 @@ create_texture :: proc(using texture: Texture) -> Handle(Texture) {
 
 create_shader :: proc(shader: Shader) -> Handle(Shader) {
 	using gl
-	using shader := shader
+	shader := shader
 
 	vs := CreateShader(VERTEX_SHADER)
-	ShaderSource(vs, 1, &vs_source, nil)
+	ShaderSource(vs, 1, &shader.vs_source, nil)
 	CompileShader(vs)
 	{
 		succ: i32
@@ -119,7 +124,7 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 	}
 
 	ps := CreateShader(FRAGMENT_SHADER)
-	ShaderSource(ps, 1, &ps_source, nil)
+	ShaderSource(ps, 1, &shader.ps_source, nil)
 	CompileShader(ps)
 	{
 		succ: i32
@@ -137,41 +142,31 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 		if succ == 0 do panic("Shader program is not linked")
 	}
 
-	append(&shaders_pool, shader)
-	handle := Handle(Shader){ len(shaders_pool) - 1 }
+	handle := add_resource(shader)
 	shader_ids[handle] = prog
-
 	return handle
-}
-
-bind_uniforms :: proc(shd: Handle(Shader), name: cstring) {
-	assert(shd.index >= 0 && shd.index < len(shaders_pool))
-	using gl
-
-	id := shader_ids[shd]
-	uniform_block_index := GetUniformBlockIndex(id, name)
-	UniformBlockBinding(id, uniform_block_index, 0)
-}
-
-set_shader :: proc(shader: Handle(Shader)) {
-	gl.UseProgram(shader_ids[shader])
 }
 
 // Bind Group procs
 
-create_bind_group :: proc(using bind_group: Bind_Group) -> Handle(Bind_Group) {
+create_bind_group :: proc(bind_group: Bind_Group) -> Handle(Bind_Group) {
+	assert(len(bind_group.attributes) == len(bind_group.vbos))
 	using gl
+
 	id: u32
 	GenVertexArrays(1, &id)
 	BindVertexArray(id)
 	defer BindVertexArray(0)
 
-	for buf, n in vertex_buffers {
-		id := buffer_ids[buf]
-		buffer := &buffers_pool[buf.index]
-		BindBuffer(gl_buffer_usage[buffer.usage], id)
+	BindBuffer(gl_buffer_usage[.INDEX], buffer_ids[ebo])
 
-		for attr, i in attributes[n] {
+	for buf, n in bind_group.vbos {
+		id := buffer_ids[buf]
+		buffer := get_resource(buf)
+		BindBuffer(gl_buffer_usage[.VERTEX], id)
+		defer BindBuffer(gl_buffer_usage[.VERTEX], 0)
+
+		for attr, i in bind_group.attributes[n] {
 			// HACK: hardcoded size_of(f32)
 			VertexAttribPointer(u32(i), data_format_sizes[attr.format] / size_of(f32), 
 						FLOAT, FALSE, buffer.byte_width, uintptr(attr.offset))
@@ -179,17 +174,39 @@ create_bind_group :: proc(using bind_group: Bind_Group) -> Handle(Bind_Group) {
 		}
 	}
 
-	append(&bind_groups_pool, bind_group)
-	handle := Handle(Bind_Group){ len(bind_groups_pool) - 1 }
-	bind_group_ids[handle] = id
+	prog := shader_ids[bind_group.shader]
+	for ubo, i in bind_group.uniforms {
+		buffer := get_resource(ubo)
+		BindBuffer(gl_buffer_usage[.UNIFORM], id)
+		defer BindBuffer(gl_buffer_usage[.UNIFORM], 0)
 
+		uniform_block_index := GetUniformBlockIndex(prog, buffer.name)
+		UniformBlockBinding(prog, uniform_block_index, u32(i))
+	}
+	UseProgram(prog)
+	for tex, i in bind_group.textures {
+		tex_name := get_resource(tex).name
+		ActiveTexture(TEXTURE0 + u32(i))
+		BindTexture(TEXTURE_2D, texture_ids[tex])
+		Uniform1i(GetUniformLocation(prog, tex_name), i32(i))
+		fmt.println(tex, tex_name, i)
+	}
+
+	handle := add_resource(bind_group)
+	bind_group_ids[handle] = id
 	return handle
 }
 
 set_bind_group :: proc(bg: Handle(Bind_Group)) {
-	assert(bg.index >= 0 && bg.index < len(bind_groups_pool))
 	using gl
 
+	bind_group := get_resource(bg)
+
+	UseProgram(shader_ids[bind_group.shader])
 	BindVertexArray(bind_group_ids[bg])
-	
+
+	//for tex, i in bind_group.textures {
+	//	ActiveTexture(TEXTURE0 + u32(i))
+	//	BindTexture(TEXTURE_2D, texture_ids[tex])
+	//}
 }

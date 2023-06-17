@@ -110,21 +110,14 @@ flush_impl :: proc() {
 	modify_buffer(vbo, slice.to_bytes(verts))
 	modify_buffer(ebo, slice.to_bytes(indxs))
 	
-
-	set_shader(shader)
-	
 	set_bind_group(vao)
 
-	//BindVertexArray(bind_group_ids[vao])
 	
-	// 1. Bind texture
+	//ActiveTexture(TEXTURE0)
 	//BindTexture(TEXTURE_2D, texture_ids[tex])
-
-	// 2. Bind VAO
-
 	
 	// 3. Draw
-	//gl.DrawElementsInstancedBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 1, 0)
+	//DrawElementsInstancedBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 1, 0)
 	// glDrawArraysIndirect
 	DrawElementsBaseVertex(TRIANGLES, buf_idx * 6, UNSIGNED_INT, nil, 0)
 }
@@ -159,7 +152,7 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 		memory_model = .GPU_CPU, 
 	})
 
-	pixels := make([][4]byte, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
+	pixels := make([][4]u8, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
 	defer delete(pixels)
 	
 	for alpha, i in mu.default_atlas_alpha {
@@ -167,6 +160,7 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 	}
 
 	tex = create_texture({
+		name = "atlas_texture",
 		initial_data = slice.to_bytes(pixels),
 		dimensions = { mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT },
 		format = .RGBA8_UNORM,
@@ -177,8 +171,8 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 		ps_source = fragment_shader,
 	})
    
-	bind_uniforms(shader, "Matrices")
 	ubo = create_buffer({
+		name = "view_matrices",
 		initial_data = nil,
 		byte_width = size_of(Uniforms_Matrices),
 		usage = .UNIFORM,
@@ -187,8 +181,11 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 
 	vao = create_bind_group({
 		name = "Microui Atlas",
+		shader = shader,
+		uniforms = { ubo },
 		textures = { tex },
-		vertex_buffers = { vbo },
+		ebo = ebo,
+		vbos = { vbo },
 		attributes = {
 			{
 				{ offset = 0,  format = .RG32_FLOAT },
@@ -197,8 +194,6 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 			},
 		},
 	})
-
-	fmt.println(bind_groups_pool[vao.index])
 }
 
 mu_test_window :: proc(ctx: ^mu.Context) {
@@ -257,6 +252,7 @@ clip_rect_impl :: proc(rect: mu.Rect) {
 
 
 when ODIN_ARCH == .amd64 || ODIN_ARCH == .i386 {
+	@(private="file")
 	vertex_shader: cstring = 
 `#version 330 core
 layout (location = 0) in vec2 pos;
@@ -266,7 +262,7 @@ layout (location = 2) in vec2 tex;
 out vec4 vertex_color;
 out vec2 tex_coords;
 
-layout (std140) uniform Matrices {
+layout (std140) uniform view_matrices {
 	mat4 projection;
 };
 
@@ -275,6 +271,7 @@ void main() {
 	vertex_color = col;
 	tex_coords   = tex; 
 }`
+	@(private="file")
 	fragment_shader: cstring = 
 `#version 330 core
 in vec4 vertex_color;
@@ -289,6 +286,7 @@ void main() {
 	if (frag_color.a == 0.0) discard;
 }`
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64 {
+	@(private="file")
 	vertex_shader: cstring = 
 `#version 300 es
 layout (location = 0) in vec2 pos;
@@ -305,6 +303,7 @@ void main() {
 	vertex_color = col;
 	tex_coords   = tex; 
 }`
+	@(private="file")
 	fragment_shader: cstring = 
 `#version 300 es
 in vec4 vertex_color;

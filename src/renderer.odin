@@ -1,9 +1,5 @@
 package main
 
-Handle :: struct($T: typeid) {
-	index: int,
-}
-
 Data_Format :: enum {
 	RG32_FLOAT,  
 	RGB32_FLOAT,  
@@ -24,17 +20,14 @@ data_format_sizes := [Data_Format]i32 {
 
 // Textures
 
-textures_pool: [dynamic]Texture
-
 Texture :: struct {
+	name         : cstring,
 	initial_data : []u8,
 	dimensions   : [2]i32,
 	format       : Data_Format,
 }
 
 // Buffers
-
-buffers_pool: [dynamic]Buffer
 
 Memory_Model :: enum {
 	GPU, 
@@ -48,6 +41,7 @@ Buffer_Usage :: enum {
 }
 
 Buffer :: struct {
+	name         : cstring,
 	initial_data : []u8,
 	byte_width   : i32,
 	usage        : Buffer_Usage,
@@ -56,15 +50,11 @@ Buffer :: struct {
 
 // Shaders
 
-shaders_pool: [dynamic]Shader
-
 Shader :: struct {
 	vs_source, ps_source: cstring,
 }
 
 // Bind Groups
-
-bind_groups_pool: [dynamic]Bind_Group
 
 Buffer_Attribute :: struct {
 	offset: i32,
@@ -73,7 +63,122 @@ Buffer_Attribute :: struct {
 
 Bind_Group :: struct {
 	name       : string,
+	shader     : Handle(Shader),
+	uniforms   : []Handle(Buffer),
 	textures   : []Handle(Texture),
-	vertex_buffers : []Handle(Buffer),
+	ebo        : Handle(Buffer),
+	vbos       : []Handle(Buffer),
 	attributes : [][]Buffer_Attribute,
+}
+
+// Resource pools
+
+Handle :: struct($T: typeid) {
+	index: i32,
+	gen: i32,
+}
+
+Slot :: struct($T: typeid) {
+	resource: Maybe(T),
+	gen: i32, 
+}
+
+buffers_pool     : [dynamic]Slot(Buffer)
+textures_pool    : [dynamic]Slot(Texture)
+shaders_pool     : [dynamic]Slot(Shader)
+bind_groups_pool : [dynamic]Slot(Bind_Group)
+
+// FIXME: Change to something smart with unions or polymorphism.
+
+get_resource_buffer :: proc(using res: Handle(Buffer)) -> ^Buffer {
+	assert(index >= 0 && index < i32(len(buffers_pool)))
+	return &buffers_pool[index].resource.? if gen == buffers_pool[index].gen else nil
+} 
+get_resource_texture :: proc(using res: Handle(Texture)) -> ^Texture {
+	assert(index >= 0 && index < i32(len(textures_pool)))
+	return &textures_pool[index].resource.? if gen == textures_pool[index].gen else nil
+} 
+get_resource_shader :: proc(using res: Handle(Shader)) -> ^Shader {
+	assert(index >= 0 && index < i32(len(shaders_pool)))
+	return &shaders_pool[index].resource.? if gen == shaders_pool[index].gen else nil
+} 
+get_resource_bind_group :: proc(using res: Handle(Bind_Group)) -> ^Bind_Group {
+	assert(index >= 0 && index < i32(len(bind_groups_pool)))
+	return &bind_groups_pool[index].resource.? if gen == bind_groups_pool[index].gen else nil
+} 
+get_resource :: proc {
+	get_resource_buffer,
+	get_resource_texture,
+	get_resource_shader,
+	get_resource_bind_group,
+}
+
+add_resource_buffer :: proc(res: Buffer) -> Handle(Buffer) {
+	for slot, i in &buffers_pool {
+		if _, ok := slot.resource.?; !ok {
+			slot.resource = res
+			return { i32(i), slot.gen }
+		}
+	}
+	append(&buffers_pool, Slot(Buffer){ resource = res, gen = 0 })
+	return { i32(len(buffers_pool)-1), 0 }
+}
+add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
+	for slot, i in &textures_pool {
+		if _, ok := slot.resource.?; !ok {
+			slot.resource = res
+			return { i32(i), slot.gen }
+		}
+	}
+	append(&textures_pool, Slot(Texture){ resource = res, gen = 0 })
+	return { i32(len(textures_pool)-1), 0 }
+}
+add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
+	for slot, i in &shaders_pool {
+		if _, ok := slot.resource.?; !ok {
+			slot.resource = res
+			return { i32(i), slot.gen }
+		}
+	}
+	append(&shaders_pool, Slot(Shader){ resource = res, gen = 0 })
+	return { i32(len(shaders_pool)-1), 0 }
+}
+add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
+	for slot, i in &bind_groups_pool {
+		if _, ok := slot.resource.?; !ok {
+			slot.resource = res
+			return { i32(i), slot.gen }
+		}
+	}
+	append(&bind_groups_pool, Slot(Bind_Group){ resource = res, gen = 0 })
+	return { i32(len(bind_groups_pool)-1), 0 }
+}
+add_resource :: proc {
+	add_resource_buffer,
+	add_resource_texture,
+	add_resource_shader,
+	add_resource_bind_group,
+}
+
+remove_resource_buffer :: proc(using handle: Handle(Buffer)) {
+	assert(index >= 0 && index < i32(len(buffers_pool)))
+	if gen == buffers_pool[index].gen do buffers_pool[index] = { nil, gen + 1 }
+}
+remove_resource_texture :: proc(using handle: Handle(Texture)) {
+	assert(index >= 0 && index < i32(len(textures_pool)))
+	if gen == textures_pool[index].gen do textures_pool[index] = { nil, gen + 1 }
+}
+remove_resource_shader :: proc(using handle: Handle(Shader)) {
+	assert(index >= 0 && index < i32(len(shaders_pool)))
+	if gen == shaders_pool[index].gen do shaders_pool[index] = { nil, gen + 1 }
+}
+remove_resource_bind_group :: proc(using handle: Handle(Bind_Group)) {
+	assert(index >= 0 && index < i32(len(bind_groups_pool)))
+	if gen == bind_groups_pool[index].gen do bind_groups_pool[index] = { nil, gen + 1 }
+}
+remove_resource :: proc {
+	remove_resource_buffer,
+	remove_resource_texture,
+	remove_resource_shader,
+	remove_resource_bind_group,
 }
