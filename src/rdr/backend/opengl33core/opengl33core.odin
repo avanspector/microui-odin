@@ -1,10 +1,17 @@
-package main
+package base_backend_opengl33core
 
-import "core:fmt"
+import "../../../rdr/base"
 import gl "vendor:opengl"
 
-@(private="file")
-gl_data_formats := [Data_Format]u32 { 
+Handle  :: base.Handle
+Buffer  :: base.Buffer
+Texture :: base.Texture
+Shader  :: base.Shader
+Bind_Group :: base.Bind_Group
+Command_Buffer :: base.Command_Buffer 
+
+@(private)
+gl_data_formats := [base.Data_Format]u32 { 
 	.RG32_FLOAT   = gl.RG32F, 
 	.RGB32_FLOAT  = gl.RGB32F,  
 	.RGB32_UINT   = gl.RGB32UI, 
@@ -13,27 +20,31 @@ gl_data_formats := [Data_Format]u32 {
 	.RGBA32_UINT  = gl.RGBA32UI, 
 }
 
-@(private="file")
-gl_memory_model := [Memory_Model]u32 {
+@(private)
+gl_memory_model := [base.Memory_Model]u32 {
 	.GPU     = gl.STATIC_DRAW, 
 	.GPU_CPU = gl.DYNAMIC_DRAW, // HINT: Maybe try STREAM_DRAW?
 }
 
-@(private="file")
-gl_buffer_usage := [Buffer_Usage]u32 {
+@(private)
+gl_buffer_usage := [base.Buffer_Usage]u32 {
 	.VERTEX  = gl.ARRAY_BUFFER, 
 	.INDEX   = gl.ELEMENT_ARRAY_BUFFER,
 	.UNIFORM = gl.UNIFORM_BUFFER,
 }
 
-@(private="file")
+@(private)
 texture_ids: map[Handle(Texture)]u32
-@(private="file")
+@(private)
 buffer_ids:  map[Handle(Buffer)]u32
-@(private="file")
+@(private)
 shader_ids:  map[Handle(Shader)]u32
-@(private="file")
+@(private)
 vao_ids: map[Handle(Shader)]u32
+
+set_viewport_view :: proc "contextless" (x, y, w, h: i32) {
+	gl.Viewport(x, y, w, h)
+}
 
 set_scissor_view :: proc "contextless" (x, y, w, h: i32) {
 	gl.Scissor(x, y, w, h)
@@ -44,28 +55,32 @@ clear_background :: proc "contextless" (r, g, b, a: f32) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 }
 
+init_rdr :: proc() {
+	gl.Enable(gl.SCISSOR_TEST)
+}
+
 // Buffer procs
 
 create_buffer :: proc(buffer: Buffer) -> Handle(Buffer) {
 	using gl
-	buffer_usage := gl_buffer_usage[buffer.usage]
+	buf_usage := gl_buffer_usage[buffer.usage]
 
 	id: u32
 	GenBuffers(1, &id)
-	BindBuffer(buffer_usage, id)
-	defer BindBuffer(buffer_usage, 0)
+	BindBuffer(buf_usage, id)
+	defer BindBuffer(buf_usage, 0)
 	{
 		using buffer
 
-		BufferData(buffer_usage, 
+		BufferData(buf_usage, 
 			len(initial_data) if len(initial_data) > 0 else int(byte_width), 
 			raw_data(initial_data), gl_memory_model[memory_model])
 
 		if usage == .UNIFORM {
-			BindBufferRange(buffer_usage, 0, id, 0, int(byte_width))
+			BindBufferRange(buf_usage, 0, id, 0, int(byte_width))
 		}
 	}
-	handle := add_resource(buffer)
+	handle := base.add_resource(buffer)
 	buffer_ids[handle] = id
 	return handle
 }
@@ -98,7 +113,7 @@ create_texture :: proc(texture: Texture) -> Handle(Texture) {
 			data_format, data_type, raw_data(texture.initial_data))
 	GenerateMipmap(TEXTURE_2D)
 
-	handle := add_resource(texture)
+	handle := base.add_resource(texture)
 	texture_ids[handle] = id
 	return handle
 }
@@ -162,7 +177,7 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 					data_type = FLOAT
 					type_size = size_of(f32)
 				}
-				VertexAttribPointer(attr_idx, data_sizes[attr.format]/type_size, 
+				VertexAttribPointer(attr_idx, base.data_sizes[attr.format]/type_size, 
 						data_type, FALSE, buf_layout.byte_width, uintptr(attr.offset))
 				EnableVertexAttribArray(attr_idx)
 				attr_idx += 1
@@ -185,7 +200,7 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 		case .NONE: Disable(CULL_FACE)
 	}
 
-	handle := add_resource(shader)
+	handle := base.add_resource(shader)
 	shader_ids[handle] = prog
 	vao_ids[handle] = vao
 	return handle
@@ -194,17 +209,16 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 // Bind Group procs
 
 create_bind_group :: proc(bind_group: Bind_Group) -> Handle(Bind_Group) {
-	handle := add_resource(bind_group)
+	handle := base.add_resource(bind_group)
 	return handle
 }
 
-@(private="file")
+@(private)
 bind_group_to_shader :: proc(bind_group: Bind_Group, prog: u32) {
 	using gl
 	
 	for ubo, i in bind_group.uniforms {
-		buffer := get_resource(ubo)
-		fmt.println(buffer)
+		buffer := base.get_resource(ubo)
 		if buffer == nil do panic("UBO is nil")
 
 		uniform_block_index := GetUniformBlockIndex(prog, buffer.name)
@@ -212,7 +226,7 @@ bind_group_to_shader :: proc(bind_group: Bind_Group, prog: u32) {
 	}
 	
 	for tex, i in bind_group.textures {
-		tex_name := get_resource(tex).name
+		tex_name := base.get_resource(tex).name
 		ActiveTexture(TEXTURE0 + u32(i))
 		BindTexture(TEXTURE_2D, texture_ids[tex])
 		Uniform1i(GetUniformLocation(prog, tex_name), i32(i))
@@ -241,7 +255,7 @@ draw_from_command_buffer :: proc(cmd: Command_Buffer) {
 	if bind_group, ok := cmd.bind_group.?; ok { 
 		if cmd.bind_group != cache.bind_group {
 			cache.bind_group = cmd.bind_group
-			bg := get_resource(bind_group)
+			bg := base.get_resource(bind_group)
 			bind_group_to_shader(bg^, cache.prog)
 		}
 	}

@@ -3,3 +3,4 @@
 *.obj
 .vs
 odin
+build_may*.bat

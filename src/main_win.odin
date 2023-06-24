@@ -1,8 +1,8 @@
 package main
 
-import "core:fmt"
 import "core:runtime"
 import "vendor:glfw"
+import "rdr"
 import gl "vendor:opengl"
 import mu "vendor:microui"
 
@@ -33,8 +33,8 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 }
 
 framebuffer_resize_callback :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
-	gl.Viewport(0, 0, width, height)
-	set_scissor_view(0, 0, width, height)
+	rdr.set_viewport_view(0, 0, width, height)
+	rdr.set_scissor_view(0, 0, width, height)
 	vp_width, vp_height = width, height
 }
 
@@ -51,35 +51,30 @@ main :: proc() {
 	defer glfw.DestroyWindow(window)
 	
 	glfw.MakeContextCurrent(window)
-	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
-
 	glfw.SetFramebufferSizeCallback(window, framebuffer_resize_callback)
 	glfw.SetMouseButtonCallback(window, mouse_button_callback)
 	glfw.SetCursorPosCallback(window, mouse_move_callback)
 	glfw.SetScrollCallback(window, mouse_scroll_callback)
 	glfw.SwapInterval(1)
 
-	gl.Enable(gl.SCISSOR_TEST)
-
+	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
+	rdr.init_rdr()
+	
 	create_cube_resources()
+	//create_mu_resources()
 
-	fmt.println("\nshaders pool after leaving first proc\n\n", len(shaders_pool), shaders_pool)
-
-	create_mu_resources()
-
-	init_mu_backend(&ctx)
+	//init_mu_backend(&ctx)
 
 	for !glfw.WindowShouldClose(window) {
 		defer { glfw.SwapBuffers(window); glfw.PollEvents() }
 
-		clear_background(0.1, 0.1, 0.1, 1.0)
+		rdr.clear_background(0.1, 0.1, 0.1, 1.0)
 
-		mu_test_window(&ctx)
-		mu_register_events(&ctx)
+		//mu_test_window(&ctx)
+		//mu_register_events(&ctx)
 
 		render_cubes()
 		
-		mu_render()
-
+		//mu_render()
 	}   
 }

@@ -1,9 +1,10 @@
 package main
 
-import "core:fmt"
 import "core:slice"
-import la "core:math/linalg"
+import la  "core:math/linalg"
 import glm "core:math/linalg/glsl"
+
+import "rdr"
 
 Matrices_Uniforms :: struct {
 	projection: glm.mat4,
@@ -11,11 +12,13 @@ Matrices_Uniforms :: struct {
 	model: glm.mat4,
 }
 
-cubes, cube_uniform: Handle(Buffer)
-red, green, blue, yellow: Handle(Shader)
-cube: Handle(Bind_Group)
+cubes, cube_uniform: rdr.Handle(rdr.Buffer)
+red, green, blue, yellow: rdr.Handle(rdr.Shader)
+cube: rdr.Handle(rdr.Bind_Group)
 
 create_cube_resources :: proc() {
+	using rdr
+
 	cubes = create_buffer({
 		initial_data = slice.to_bytes(cubeVertices[:]),
 		byte_width = size_of([3]f32),
@@ -72,8 +75,6 @@ create_cube_resources :: proc() {
 		}
 	})
 
-	fmt.println("\nshaders pool before add\n\n", len(shaders_pool), shaders_pool)
-
 	yellow = create_shader({
 		vs_source = vs_source,
 		ps_source = ps_yellow,
@@ -88,16 +89,14 @@ create_cube_resources :: proc() {
 		}
 	})
 
-	fmt.println("\nshaders pool after add\n\n", len(shaders_pool), shaders_pool)
-	
 	cube = create_bind_group({
 		uniforms = { cube_uniform },
 	})
-
-	fmt.println("\nshaders pool before leaving first proc\n\n", len(shaders_pool), shaders_pool)
 }
 
 render_cubes :: proc() {
+	using rdr
+	
 	uniforms := Matrices_Uniforms {
 		projection = glm.mat4Perspective(0.79, f32(vp_width)/f32(vp_height), 1., 100.),
 		view = glm.mat4LookAt({ 0., 0., 3. }, { 0., 0., 3. }+{ 0., 0., -1. }, { 0., 1., 0. })

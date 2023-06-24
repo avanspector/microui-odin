@@ -2,10 +2,11 @@ package main
 
 import "core:fmt"
 import "core:slice"
-import glm "core:math/linalg/glsl"
 import la  "core:math/linalg"
-import gl  "vendor:opengl"
+import glm "core:math/linalg/glsl"
 import mu  "vendor:microui"
+
+import "rdr"
 
 Vertex :: struct {
 	pos: glm.vec2,
@@ -25,17 +26,18 @@ indices  : [BUFFER * 6]u32
 buf_idx  : u32
 
 // Handles
-microui_atlas: Handle(Bind_Group)
-microui_vbo, micrui_ebo, microui_uniform: Handle(Buffer)
-microui_atlas_tex: Handle(Texture)
-microui_shader: Handle(Shader)
+microui_atlas: rdr.Handle(rdr.Bind_Group)
+microui_vbo, micrui_ebo, microui_uniform: rdr.Handle(rdr.Buffer)
+microui_atlas_tex: rdr.Handle(rdr.Texture)
+microui_shader: rdr.Handle(rdr.Shader)
 
 vp_width, vp_height: i32 = 1024, 768
 
 ctx: mu.Context
 
 create_mu_resources :: proc() {
-	fmt.println("\nshaders pool after entering second proc\n\n", len(shaders_pool), shaders_pool)
+	using rdr
+
 	pixels := make([][4]u8, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
 	defer delete(pixels)
 	
@@ -72,15 +74,11 @@ create_mu_resources :: proc() {
 		memory_model = .GPU_CPU,
 	})
 
-	fmt.println("\nshaders pool when fault\n\n", len(shaders_pool), shaders_pool)
-
-	/*microui_atlas = create_bind_group({
+	microui_atlas = create_bind_group({
 		name = "Microui Atlas",
 		uniforms = { microui_uniform },
 		textures = { microui_atlas_tex },
-	})*/
-
-	fmt.println("\nshaders pool before add\n\n", len(shaders_pool), shaders_pool)
+	})
 
 	microui_shader = create_shader({
 		vs_source = vertex_shader, 
@@ -99,8 +97,6 @@ create_mu_resources :: proc() {
 			cull_mode  = .NONE,
 		},
 	})
-	
-	fmt.println("\nshaders pool after add\n\n", len(shaders_pool), shaders_pool)
 }
 
 init_mu_backend :: proc(ctx: ^mu.Context) {
@@ -110,7 +106,6 @@ init_mu_backend :: proc(ctx: ^mu.Context) {
 }
 
 mu_render :: proc() {
-	using gl
 	if buf_idx == 0 do return
 	defer buf_idx = 0
 
@@ -120,7 +115,7 @@ mu_render :: proc() {
 	verts := vertices[:buf_idx * 4]
 	indxs := indices[:buf_idx * 6]
 
-	draw_from_command_buffer({
+	rdr.draw_from_command_buffer({
 		shader = microui_shader,
 		bind_group = microui_atlas,
 		vertex_buffer = microui_vbo,
@@ -208,7 +203,7 @@ mu_register_events :: proc(ctx: ^mu.Context) {
 }
 
 clip_rect_impl :: proc(rect: mu.Rect) {
-	set_scissor_view(rect.x, rect.y, rect.w, rect.h)
+	rdr.set_scissor_view(rect.x, rect.y, rect.w, rect.h)
 }
 
 
@@ -266,9 +261,8 @@ mu_test_window :: proc(ctx: ^mu.Context) {
 }
 
 
-when ODIN_ARCH == .amd64 || ODIN_ARCH == .i386 {
-	@(private="file")
-	vertex_shader: cstring = 
+@(private="file")
+vertex_shader: cstring = 
 `#version 330 core
 layout (location = 0) in vec2 pos;
 layout (location = 1) in vec4 col;
@@ -286,8 +280,8 @@ void main() {
 	vertex_color = col;
 	tex_coords   = tex; 
 }`
-	@(private="file")
-	fragment_shader: cstring = 
+@(private="file")
+fragment_shader: cstring = 
 `#version 330 core
 in vec4 vertex_color;
 in vec2 tex_coords;
@@ -300,35 +294,3 @@ void main() {
 	frag_color = texture(atlas_texture, tex_coords) * vertex_color;
 	if (frag_color.a < 0.1) discard;
 }`
-} else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64 {
-	@(private="file")
-	vertex_shader: cstring = 
-`#version 300 es
-layout (location = 0) in vec2 pos;
-layout (location = 1) in vec4 col;
-layout (location = 2) in vec2 tex;
-
-out vec4 vertex_color;
-out vec2 tex_coords;
-
-uniform mat4 projection;
-
-void main() {
-	gl_Position  = projection * vec4(pos, 0.0, 1.0);
-	vertex_color = col;
-	tex_coords   = tex; 
-}`
-	@(private="file")
-	fragment_shader: cstring = 
-`#version 300 es
-in vec4 vertex_color;
-in vec2 tex_coords;
-
-out vec4 frag_color;
-
-uniform sampler2D atlas_texture;
-
-void main() {
-	frag_color = texture(atlas_texture, tex_coords) * vertex_color;
-}`
-}

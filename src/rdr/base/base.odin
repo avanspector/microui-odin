@@ -1,5 +1,4 @@
-package main
-import "core:fmt"
+package rdr_base
 
 Data_Format :: enum {
 	RG32_FLOAT,  
@@ -160,9 +159,6 @@ add_resource_buffer :: proc(res: Buffer) -> Handle(Buffer) {
 		}
 	}
 	append(&buffers_pool, Slot(Buffer){ resource = res, gen = 0 })
-
-	//fmt.println("\nbuffers pool\n\n", len(buffers_pool), buffers_pool)
-
 	return { i32(len(buffers_pool)-1), 0 }
 }
 add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
@@ -173,9 +169,6 @@ add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
 		}
 	}
 	append(&textures_pool, Slot(Texture){ resource = res, gen = 0 })
-
-	//fmt.println("\ntextures pool\n\n", len(textures_pool), textures_pool)
-
 	return { i32(len(textures_pool)-1), 0 }
 }
 add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
@@ -185,12 +178,7 @@ add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
 			return { i32(i), slot.gen }
 		}
 	}
-	
-
 	append(&shaders_pool, Slot(Shader){ resource = res, gen = 0 })
-
-	
-
 	return { i32(len(shaders_pool)-1), 0 }
 }
 add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
@@ -201,9 +189,6 @@ add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
 		}
 	}
 	append(&bind_groups_pool, Slot(Bind_Group){ resource = res, gen = 0 })
-
-	//fmt.println("\nbind groups pool\n\n", len(bind_groups_pool), bind_groups_pool)
-
 	return { i32(len(bind_groups_pool)-1), 0 }
 }
 add_resource :: proc {
