@@ -1,4 +1,5 @@
 package main
+import "core:fmt"
 
 Data_Format :: enum {
 	RG32_FLOAT,  
@@ -9,7 +10,7 @@ Data_Format :: enum {
 	RGBA32_UINT,
 }
 
-data_format_sizes := [Data_Format]i32 {
+data_sizes := [Data_Format]i32 {
 	.RGBA8_UNORM  = 4,
 	.RG32_FLOAT   = 8,
 	.RGB32_FLOAT  = 12,  
@@ -18,16 +19,16 @@ data_format_sizes := [Data_Format]i32 {
 	.RGBA32_UINT  = 16,
 }
 
-// Textures
+// === Textures ===
 
 Texture :: struct {
 	name         : cstring,
-	initial_data : []u8,
+	initial_data : []u8 `fmt:"-"`,
 	dimensions   : [2]i32,
 	format       : Data_Format,
 }
 
-// Buffers
+// === Buffers ===
 
 Memory_Model :: enum {
 	GPU, 
@@ -42,36 +43,74 @@ Buffer_Usage :: enum {
 
 Buffer :: struct {
 	name         : cstring,
-	initial_data : []u8,
+	initial_data : []u8 `fmt:"-"`,
 	byte_width   : i32,
 	usage        : Buffer_Usage,
 	memory_model : Memory_Model,
 }
 
-// Shaders
+// === Shaders ===
 
-Shader :: struct {
-	vs_source, ps_source: cstring,
-}
-
-// Bind Groups
-
-Buffer_Attribute :: struct {
+Vertex_Layout :: struct {
 	offset: i32,
 	format: Data_Format,
 }
 
-Bind_Group :: struct {
-	name       : string,
-	shader     : Handle(Shader),
-	uniforms   : []Handle(Buffer),
-	textures   : []Handle(Texture),
-	ebo        : Handle(Buffer),
-	vbos       : []Handle(Buffer),
-	attributes : [][]Buffer_Attribute,
+Shader :: struct {
+	vs_source: cstring `fmt:"-"`, 
+	ps_source: cstring `fmt:"-"`,
+	vertex_buffers: []Handle(Buffer),
+	vertex_buffers_layout: []struct {
+		byte_width: i32,
+		attributes: []Vertex_Layout,
+	} `fmt:"-"`,
+	render_state: struct {
+		blend_mode: Blend_Mode,
+		depth_test: Depth_Test,
+		cull_mode:  Cull_Mode,
+	} `fmt:"-"`,
 }
 
-// Resource pools
+// === Bind Groups ===
+
+Blend_Mode :: enum {
+	NONE,
+	EXCLUDE_ALPHA,
+}
+
+Depth_Test :: enum {
+	NONE,
+	LESS,
+	GREATER_OR_EQUAL,
+	LESS_OR_EQUAL,
+}
+
+Cull_Mode :: enum {
+	NONE,
+	FRONT,
+	BACK,
+}
+
+Bind_Group :: struct {
+	name     : string,
+	uniforms : []Handle(Buffer),
+	textures : []Handle(Texture),
+}
+
+// === Command Buffers ===
+
+Command_Buffer :: struct {
+	shader          : Maybe(Handle(Shader)),
+	bind_group      : Maybe(Handle(Bind_Group)),
+	vertex_buffer   : Maybe(Handle(Buffer)),
+	index_buffer    : Maybe(Handle(Buffer)),
+	uniform_buffer  : Maybe(Handle(Buffer)),
+	vertex_data     : []u8,
+	index_data      : []u8,
+	uniform_data    : []u8,
+}
+
+// === Resource Pools ===
 
 Handle :: struct($T: typeid) {
 	index: i32,
@@ -79,7 +118,7 @@ Handle :: struct($T: typeid) {
 }
 
 Slot :: struct($T: typeid) {
-	resource: Maybe(T),
+	resource: Maybe(T), 
 	gen: i32, 
 }
 
@@ -121,6 +160,9 @@ add_resource_buffer :: proc(res: Buffer) -> Handle(Buffer) {
 		}
 	}
 	append(&buffers_pool, Slot(Buffer){ resource = res, gen = 0 })
+
+	//fmt.println("\nbuffers pool\n\n", len(buffers_pool), buffers_pool)
+
 	return { i32(len(buffers_pool)-1), 0 }
 }
 add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
@@ -131,6 +173,9 @@ add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
 		}
 	}
 	append(&textures_pool, Slot(Texture){ resource = res, gen = 0 })
+
+	//fmt.println("\ntextures pool\n\n", len(textures_pool), textures_pool)
+
 	return { i32(len(textures_pool)-1), 0 }
 }
 add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
@@ -140,7 +185,12 @@ add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
 			return { i32(i), slot.gen }
 		}
 	}
+	
+
 	append(&shaders_pool, Slot(Shader){ resource = res, gen = 0 })
+
+	
+
 	return { i32(len(shaders_pool)-1), 0 }
 }
 add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
@@ -151,6 +201,9 @@ add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
 		}
 	}
 	append(&bind_groups_pool, Slot(Bind_Group){ resource = res, gen = 0 })
+
+	//fmt.println("\nbind groups pool\n\n", len(bind_groups_pool), bind_groups_pool)
+
 	return { i32(len(bind_groups_pool)-1), 0 }
 }
 add_resource :: proc {

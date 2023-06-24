@@ -22,20 +22,119 @@ BUFFER :: 128 * 128
 // Buffers
 vertices : [BUFFER * 4]Vertex
 indices  : [BUFFER * 6]u32
-buf_idx  : i32
+buf_idx  : u32
 
 // Handles
-vao: Handle(Bind_Group)
-vbo, ebo, ubo: Handle(Buffer)
-tex: Handle(Texture)
-shader: Handle(Shader)
+microui_atlas: Handle(Bind_Group)
+microui_vbo, micrui_ebo, microui_uniform: Handle(Buffer)
+microui_atlas_tex: Handle(Texture)
+microui_shader: Handle(Shader)
 
 vp_width, vp_height: i32 = 1024, 768
 
 ctx: mu.Context
 
+create_mu_resources :: proc() {
+	fmt.println("\nshaders pool after entering second proc\n\n", len(shaders_pool), shaders_pool)
+	pixels := make([][4]u8, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
+	defer delete(pixels)
+	
+	for alpha, i in mu.default_atlas_alpha {
+		pixels[i] = { 255, 255, 255, alpha }
+	}
+
+	microui_atlas_tex = create_texture({
+		name = "atlas_texture",
+		initial_data = slice.to_bytes(pixels),
+		dimensions = { mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT },
+		format = .RGBA8_UNORM,
+	})
+
+	microui_vbo = create_buffer({
+		initial_data = slice.to_bytes(vertices[:]),
+		byte_width = size_of(Vertex),
+		usage = .VERTEX,
+		memory_model = .GPU_CPU,
+	})
+
+	micrui_ebo = create_buffer({
+		initial_data = slice.to_bytes(indices[:]),
+		byte_width = size_of(u32),
+		usage = .INDEX,
+		memory_model = .GPU_CPU, 
+	})
+
+	microui_uniform = create_buffer({
+		name = "view_matrices",
+		initial_data = nil,
+		byte_width = size_of(Uniforms_Matrices),
+		usage = .UNIFORM,
+		memory_model = .GPU_CPU,
+	})
+
+	fmt.println("\nshaders pool when fault\n\n", len(shaders_pool), shaders_pool)
+
+	/*microui_atlas = create_bind_group({
+		name = "Microui Atlas",
+		uniforms = { microui_uniform },
+		textures = { microui_atlas_tex },
+	})*/
+
+	fmt.println("\nshaders pool before add\n\n", len(shaders_pool), shaders_pool)
+
+	microui_shader = create_shader({
+		vs_source = vertex_shader, 
+		ps_source = fragment_shader,
+		vertex_buffers = { microui_vbo },
+		vertex_buffers_layout = {
+			{ byte_width = size_of(Vertex), attributes = {
+				{ offset = 0,  format = .RG32_FLOAT },
+				{ offset = 8,  format = .RGBA32_FLOAT },
+				{ offset = 24, format = .RG32_FLOAT },
+			}},
+		},
+		render_state = {
+			blend_mode = .EXCLUDE_ALPHA,
+			depth_test = .NONE,
+			cull_mode  = .NONE,
+		},
+	})
+	
+	fmt.println("\nshaders pool after add\n\n", len(shaders_pool), shaders_pool)
+}
+
+init_mu_backend :: proc(ctx: ^mu.Context) {
+	mu.init(ctx)
+	ctx.text_width  = mu.default_atlas_text_width
+	ctx.text_height = mu.default_atlas_text_height
+}
+
+mu_render :: proc() {
+	using gl
+	if buf_idx == 0 do return
+	defer buf_idx = 0
+
+	uniforms := Uniforms_Matrices {
+		projection = la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false)
+	}
+	verts := vertices[:buf_idx * 4]
+	indxs := indices[:buf_idx * 6]
+
+	draw_from_command_buffer({
+		shader = microui_shader,
+		bind_group = microui_atlas,
+		vertex_buffer = microui_vbo,
+		index_buffer = micrui_ebo,
+		uniform_buffer = microui_uniform,
+		vertex_data = slice.to_bytes(verts),
+		index_data = slice.to_bytes(indxs),
+		uniform_data = slice.bytes_from_ptr(&uniforms, size_of(uniforms)),
+	})
+}
+
+
 push_quad_impl :: proc(dst, src: mu.Rect, color: mu.Color) {
-	if buf_idx == BUFFER do flush_impl()
+	if buf_idx == BUFFER do buf_idx = 0
 
 	vert_idx  := buf_idx * 4
 	index_idx := buf_idx * 6
@@ -95,106 +194,23 @@ draw_icon_impl :: proc(id: int, rect: mu.Rect, color: mu.Color) {
 	push_quad_impl({ x, y, src.w, src.h }, src, color)
 }
 
-flush_impl :: proc() {
-	using gl
-	if buf_idx == 0 do return
-	defer buf_idx = 0
-
-	uniforms := Uniforms_Matrices {
-		projection = la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false)
+mu_register_events :: proc(ctx: ^mu.Context) {
+	command: ^mu.Command
+	for var in mu.next_command_iterator(ctx, &command) {
+		switch cmd in var {
+		case ^mu.Command_Text: draw_text_impl(cmd.str, cmd.pos, cmd.color)
+		case ^mu.Command_Rect: draw_rect_impl(cmd.rect, cmd.color)
+		case ^mu.Command_Icon: draw_icon_impl(int(cmd.id), cmd.rect, cmd.color)
+		case ^mu.Command_Clip: clip_rect_impl(cmd.rect)
+		case ^mu.Command_Jump: unreachable()
+		}
 	}
-	verts := vertices[:buf_idx * 4]
-	indxs := indices[:buf_idx * 6]
-	
-	modify_buffer(ubo, slice.bytes_from_ptr(&uniforms, size_of(uniforms)))
-	modify_buffer(vbo, slice.to_bytes(verts))
-	modify_buffer(ebo, slice.to_bytes(indxs))
-	
-	set_bind_group(vao)
-
-	
-	//ActiveTexture(TEXTURE0)
-	//BindTexture(TEXTURE_2D, texture_ids[tex])
-	
-	// 3. Draw
-	//DrawElementsInstancedBaseVertex(gl.TRIANGLES, buf_idx * 6, gl.UNSIGNED_INT, nil, 1, 0)
-	// glDrawArraysIndirect
-	DrawElementsBaseVertex(TRIANGLES, buf_idx * 6, UNSIGNED_INT, nil, 0)
 }
 
-init_mu_backend :: proc(ctx: ^mu.Context) {
-	using gl
-
-	Enable(BLEND)
-	//BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)
-	//BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA)
-	BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE)
-
-	Disable(CULL_FACE)
-	Disable(DEPTH_TEST)
-	DepthMask(FALSE)
-
-	mu.init(ctx)
-	ctx.text_width  = mu.default_atlas_text_width
-	ctx.text_height = mu.default_atlas_text_height
-
-	vbo = create_buffer({
-		initial_data = slice.to_bytes(vertices[:]),
-		byte_width = size_of(Vertex),
-		usage = .VERTEX,
-		memory_model = .GPU_CPU,
-	})
-
-	ebo = create_buffer({
-		initial_data = slice.to_bytes(indices[:]),
-		byte_width = size_of(u32),
-		usage = .INDEX,
-		memory_model = .GPU_CPU, 
-	})
-
-	pixels := make([][4]u8, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
-	defer delete(pixels)
-	
-	for alpha, i in mu.default_atlas_alpha {
-		pixels[i] = { 255, 255, 255, alpha }
-	}
-
-	tex = create_texture({
-		name = "atlas_texture",
-		initial_data = slice.to_bytes(pixels),
-		dimensions = { mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT },
-		format = .RGBA8_UNORM,
-	})
-		
-	shader = create_shader({
-		vs_source = vertex_shader, 
-		ps_source = fragment_shader,
-	})
-   
-	ubo = create_buffer({
-		name = "view_matrices",
-		initial_data = nil,
-		byte_width = size_of(Uniforms_Matrices),
-		usage = .UNIFORM,
-		memory_model = .GPU_CPU,
-	})
-
-	vao = create_bind_group({
-		name = "Microui Atlas",
-		shader = shader,
-		uniforms = { ubo },
-		textures = { tex },
-		ebo = ebo,
-		vbos = { vbo },
-		attributes = {
-			{
-				{ offset = 0,  format = .RG32_FLOAT },
-				{ offset = 8,  format = .RGBA32_FLOAT },
-				{ offset = 24, format = .RG32_FLOAT },
-			},
-		},
-	})
+clip_rect_impl :: proc(rect: mu.Rect) {
+	set_scissor_view(rect.x, rect.y, rect.w, rect.h)
 }
+
 
 mu_test_window :: proc(ctx: ^mu.Context) {
 	mu.begin(ctx)
@@ -229,25 +245,24 @@ mu_test_window :: proc(ctx: ^mu.Context) {
 			if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
 		}
 	}
-}
 
-mu_draw_events :: proc(ctx: ^mu.Context) {
-	command: ^mu.Command
-	for var in mu.next_command_iterator(ctx, &command) {
-		switch cmd in var {
-		case ^mu.Command_Text: draw_text_impl(cmd.str, cmd.pos, cmd.color)
-		case ^mu.Command_Rect: draw_rect_impl(cmd.rect, cmd.color)
-		case ^mu.Command_Icon: draw_icon_impl(int(cmd.id), cmd.rect, cmd.color)
-		case ^mu.Command_Clip: clip_rect_impl(cmd.rect)
-		case ^mu.Command_Jump: unreachable()
+	if mu.window(ctx, "Another LOL", { 40, 40, 300, 450 }) {
+		if .ACTIVE in mu.header(ctx, "Window Info") {
+			win := mu.get_current_container(ctx)
+			mu.layout_row(ctx, {54, -1}, 0)
+			mu.label(ctx, "Position:")
+			mu.label(ctx, fmt.tprintf("%d, %d", win.rect.x, win.rect.y))
+			mu.label(ctx, "Size:")
+			mu.label(ctx, fmt.tprintf("%d, %d", win.rect.w, win.rect.h))
+		}
+
+		mu.layout_height(ctx, 50)
+
+		if mu.layout_column(ctx) {
+			if .SUBMIT in mu.button(ctx, "Open", mu.Icon('F')) {}
+			if .SUBMIT in mu.button(ctx, "Save", mu.Icon('H')) {}
 		}
 	}
-
-	flush_impl()
-}
-
-clip_rect_impl :: proc(rect: mu.Rect) {
-	flush_impl()
 }
 
 
@@ -283,7 +298,7 @@ uniform sampler2D atlas_texture;
 
 void main() {
 	frag_color = texture(atlas_texture, tex_coords) * vertex_color;
-	if (frag_color.a == 0.0) discard;
+	if (frag_color.a < 0.1) discard;
 }`
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64 {
 	@(private="file")

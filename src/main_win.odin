@@ -1,5 +1,6 @@
 package main
 
+import "core:fmt"
 import "core:runtime"
 import "vendor:glfw"
 import gl "vendor:opengl"
@@ -33,6 +34,7 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 
 framebuffer_resize_callback :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
 	gl.Viewport(0, 0, width, height)
+	set_scissor_view(0, 0, width, height)
 	vp_width, vp_height = width, height
 }
 
@@ -57,17 +59,27 @@ main :: proc() {
 	glfw.SetScrollCallback(window, mouse_scroll_callback)
 	glfw.SwapInterval(1)
 
+	gl.Enable(gl.SCISSOR_TEST)
+
+	create_cube_resources()
+
+	fmt.println("\nshaders pool after leaving first proc\n\n", len(shaders_pool), shaders_pool)
+
+	create_mu_resources()
+
 	init_mu_backend(&ctx)
 
 	for !glfw.WindowShouldClose(window) {
 		defer { glfw.SwapBuffers(window); glfw.PollEvents() }
 
-		gl.ClearColor(0.8, 0.1, 0.3, 1.0);
-		gl.Clear(gl.COLOR_BUFFER_BIT);
+		clear_background(0.1, 0.1, 0.1, 1.0)
 
 		mu_test_window(&ctx)
+		mu_register_events(&ctx)
 
-		mu_draw_events(&ctx)
+		render_cubes()
+		
+		mu_render()
 
 	}   
 }
