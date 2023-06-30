@@ -2,12 +2,14 @@
 
 package main
 
+import "core:fmt"
 import "core:runtime"
 import "vendor:glfw"
 import gl "vendor:opengl"
 import mu "vendor:microui"
 
 import "rdr"
+import "rdr/base"
 
 main :: proc() {
 when rdr.RDR_GL == "gl33core" {
@@ -27,6 +29,7 @@ when rdr.RDR_GL == "gl33core" {
 	defer { glfw.DestroyWindow(window); glfw.Terminate() }
 
 	create_cube_resources()
+	fmt.println("AFTER CREATE", base.bind_groups_pool[:1])
 	//create_mu_resources()
 
 	//init_mu_backend(&ctx)
@@ -41,7 +44,7 @@ when rdr.RDR_GL == "gl33core" {
 		//mu_test_window(&ctx)
 		//mu_register_events(&ctx)
 
-		
+		fmt.println("BEFORE RENDER", base.bind_groups_pool[:1])
 		render_cubes()
 		//mu_render()
 	}   

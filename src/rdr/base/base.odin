@@ -93,7 +93,7 @@ Cull_Mode :: enum {
 Bind_Group :: struct {
 	name     : string,
 	uniforms : []Handle(Buffer),
-	textures : []Handle(Texture),
+	textures : []Handle(Texture) `fmt:"-"`,
 }
 
 // === Command Buffers ===

@@ -1,9 +1,11 @@
 package main
 
+import "core:fmt"
 import "core:slice"
 import glm "core:math/linalg/glsl"
 
 import "rdr"
+import "rdr/base"
 
 Matrices_Uniforms :: struct {
 	projection: glm.mat4,
@@ -88,13 +90,19 @@ create_cube_resources :: proc() {
 		},
 	})
 
+	fmt.println(base.bind_groups_pool[:1])
+
 	cube = create_bind_group({
 		uniforms = { cube_uniform },
 	})
+
+	fmt.println("END OF CREATE", base.bind_groups_pool[:1])
 }
 
 render_cubes :: proc() {
 	using rdr
+
+	fmt.println("START OF RENDER", base.bind_groups_pool[:1])
 	
 	uniforms := Matrices_Uniforms {
 		projection = glm.mat4Perspective(0.79, f32(vp_width)/f32(vp_height), 1., 100.),
@@ -140,6 +148,8 @@ render_cubes :: proc() {
 		vertex_data = slice.to_bytes(cubeVertices[:]),
 		uniform_data = slice.bytes_from_ptr(&uniforms, size_of(uniforms)),
 	})
+
+	fmt.println("RENDER OF RENDER", base.bind_groups_pool[:1])
 }
 
 cubeVertices := [?]f32 {
