@@ -121,10 +121,10 @@ Slot :: struct($T: typeid) {
 	gen: i32, 
 }
 
-buffers_pool     : [dynamic]Slot(Buffer)
-textures_pool    : [dynamic]Slot(Texture)
-shaders_pool     : [dynamic]Slot(Shader)
-bind_groups_pool : [dynamic]Slot(Bind_Group)
+buffers_pool     : [20]Slot(Buffer)
+textures_pool    : [20]Slot(Texture)
+shaders_pool     : [20]Slot(Shader)
+bind_groups_pool : [20]Slot(Bind_Group)
 
 // FIXME: Change to something smart with unions or polymorphism.
 
@@ -158,7 +158,7 @@ add_resource_buffer :: proc(res: Buffer) -> Handle(Buffer) {
 			return { i32(i), slot.gen }
 		}
 	}
-	append(&buffers_pool, Slot(Buffer){ resource = res, gen = 0 })
+	//append(&buffers_pool, Slot(Buffer){ resource = res, gen = 0 })
 	return { i32(len(buffers_pool)-1), 0 }
 }
 add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
@@ -168,7 +168,7 @@ add_resource_texture :: proc(res: Texture) -> Handle(Texture) {
 			return { i32(i), slot.gen }
 		}
 	}
-	append(&textures_pool, Slot(Texture){ resource = res, gen = 0 })
+	//append(&textures_pool, Slot(Texture){ resource = res, gen = 0 })
 	return { i32(len(textures_pool)-1), 0 }
 }
 add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
@@ -178,7 +178,7 @@ add_resource_shader :: proc(res: Shader) -> Handle(Shader) {
 			return { i32(i), slot.gen }
 		}
 	}
-	append(&shaders_pool, Slot(Shader){ resource = res, gen = 0 })
+	//append(&shaders_pool, Slot(Shader){ resource = res, gen = 0 })
 	return { i32(len(shaders_pool)-1), 0 }
 }
 add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
@@ -188,7 +188,7 @@ add_resource_bind_group :: proc(res: Bind_Group) -> Handle(Bind_Group) {
 			return { i32(i), slot.gen }
 		}
 	}
-	append(&bind_groups_pool, Slot(Bind_Group){ resource = res, gen = 0 })
+	//append(&bind_groups_pool, Slot(Bind_Group){ resource = res, gen = 0 })
 	return { i32(len(bind_groups_pool)-1), 0 }
 }
 add_resource :: proc {

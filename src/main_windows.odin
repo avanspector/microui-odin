@@ -27,9 +27,9 @@ when rdr.RDR_GL == "gl33core" {
 	defer { glfw.DestroyWindow(window); glfw.Terminate() }
 
 	create_cube_resources()
-	create_mu_resources()
+	//create_mu_resources()
 
-	init_mu_backend(&ctx)
+	//init_mu_backend(&ctx)
 
 
 	for !glfw.WindowShouldClose(window) {
@@ -38,12 +38,12 @@ when rdr.RDR_GL == "gl33core" {
 		rdr.clear_background(0.1, 0.1, 0.1, 1.0)
 
 		
-		mu_test_window(&ctx)
-		mu_register_events(&ctx)
+		//mu_test_window(&ctx)
+		//mu_register_events(&ctx)
 
 		
 		render_cubes()
-		mu_render()
+		//mu_render()
 	}   
 }
 
