@@ -1,7 +1,6 @@
 package main
 
 import "core:slice"
-import la  "core:math/linalg"
 import glm "core:math/linalg/glsl"
 
 import "rdr"
@@ -21,14 +20,14 @@ create_cube_resources :: proc() {
 
 	cubes = create_buffer({
 		initial_data = slice.to_bytes(cubeVertices[:]),
-		byte_width = size_of([3]f32),
+		byte_stride = size_of([3]f32),
 		usage = .VERTEX,
 		memory_model = .GPU,
 	})
 
 	cube_uniform = create_buffer({
 		name = "Matrices",
-		byte_width = size_of(Matrices_Uniforms),
+		byte_stride = size_of(Matrices_Uniforms),
 		usage = .UNIFORM,
 		memory_model = .GPU_CPU,
 	})
@@ -38,13 +37,13 @@ create_cube_resources :: proc() {
 		ps_source = ps_red,
 		vertex_buffers = { cubes },
 		vertex_buffers_layout = {
-			{ byte_width = size_of([3]f32), attributes = {
+			{ byte_stride = size_of([3]f32), attributes = {
 				{ offset = 0, format = .RGB32_FLOAT },
 			}},
 		},
 		render_state = {
 			depth_test = .LESS,
-		}
+		},
 	})
 
 	green = create_shader({
@@ -52,13 +51,13 @@ create_cube_resources :: proc() {
 		ps_source = ps_green,
 		vertex_buffers = { cubes },
 		vertex_buffers_layout = {
-			{ byte_width = size_of([3]f32), attributes = {
+			{ byte_stride = size_of([3]f32), attributes = {
 				{ offset = 0, format = .RGB32_FLOAT },
 			}},
 		},
 		render_state = {
 			depth_test = .LESS,
-		}
+		},
 	})
 
 	blue = create_shader({
@@ -66,13 +65,13 @@ create_cube_resources :: proc() {
 		ps_source = ps_blue,
 		vertex_buffers = { cubes },
 		vertex_buffers_layout = {
-			{ byte_width = size_of([3]f32), attributes = {
+			{ byte_stride = size_of([3]f32), attributes = {
 				{ offset = 0, format = .RGB32_FLOAT },
 			}},
 		},
 		render_state = {
 			depth_test = .LESS,
-		}
+		},
 	})
 
 	yellow = create_shader({
@@ -80,13 +79,13 @@ create_cube_resources :: proc() {
 		ps_source = ps_yellow,
 		vertex_buffers = { cubes },
 		vertex_buffers_layout = {
-			{ byte_width = size_of([3]f32), attributes = {
+			{ byte_stride = size_of([3]f32), attributes = {
 				{ offset = 0, format = .RGB32_FLOAT },
 			}},
 		},
 		render_state = {
 			depth_test = .LESS,
-		}
+		},
 	})
 
 	cube = create_bind_group({
@@ -99,7 +98,7 @@ render_cubes :: proc() {
 	
 	uniforms := Matrices_Uniforms {
 		projection = glm.mat4Perspective(0.79, f32(vp_width)/f32(vp_height), 1., 100.),
-		view = glm.mat4LookAt({ 0., 0., 3. }, { 0., 0., 3. }+{ 0., 0., -1. }, { 0., 1., 0. })
+		view = glm.mat4LookAt({ 0., 0., 3. }, { 0., 0., 3. }+{ 0., 0., -1. }, { 0., 1., 0. }),
 	}
 
 	uniforms.model = glm.mat4Translate({ -0.75, 0.75, 0. })

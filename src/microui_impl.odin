@@ -54,14 +54,14 @@ create_mu_resources :: proc() {
 
 	microui_vbo = create_buffer({
 		initial_data = slice.to_bytes(vertices[:]),
-		byte_width = size_of(Vertex),
+		byte_stride = size_of(Vertex),
 		usage = .VERTEX,
 		memory_model = .GPU_CPU,
 	})
 
 	micrui_ebo = create_buffer({
 		initial_data = slice.to_bytes(indices[:]),
-		byte_width = size_of(u32),
+		byte_stride = size_of(u32),
 		usage = .INDEX,
 		memory_model = .GPU_CPU, 
 	})
@@ -69,7 +69,7 @@ create_mu_resources :: proc() {
 	microui_uniform = create_buffer({
 		name = "view_matrices",
 		initial_data = nil,
-		byte_width = size_of(Uniforms_Matrices),
+		byte_stride = size_of(Uniforms_Matrices),
 		usage = .UNIFORM,
 		memory_model = .GPU_CPU,
 	})
@@ -85,7 +85,7 @@ create_mu_resources :: proc() {
 		ps_source = fragment_shader,
 		vertex_buffers = { microui_vbo },
 		vertex_buffers_layout = {
-			{ byte_width = size_of(Vertex), attributes = {
+			{ byte_stride = size_of(Vertex), attributes = {
 				{ offset = 0,  format = .RG32_FLOAT },
 				{ offset = 8,  format = .RGBA32_FLOAT },
 				{ offset = 24, format = .RG32_FLOAT },
@@ -110,7 +110,7 @@ mu_render :: proc() {
 	defer buf_idx = 0
 
 	uniforms := Uniforms_Matrices {
-		projection = la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false)
+		projection = la.matrix_ortho3d(0, f32(vp_width), f32(vp_height), 0, -1, 1, false),
 	}
 	verts := vertices[:buf_idx * 4]
 	indxs := indices[:buf_idx * 6]

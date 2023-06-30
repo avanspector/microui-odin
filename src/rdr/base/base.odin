@@ -43,7 +43,7 @@ Buffer_Usage :: enum {
 Buffer :: struct {
 	name         : cstring,
 	initial_data : []u8 `fmt:"-"`,
-	byte_width   : i32,
+	byte_stride  : i32,
 	usage        : Buffer_Usage,
 	memory_model : Memory_Model,
 }
@@ -60,7 +60,7 @@ Shader :: struct {
 	ps_source: cstring `fmt:"-"`,
 	vertex_buffers: []Handle(Buffer),
 	vertex_buffers_layout: []struct {
-		byte_width: i32,
+		byte_stride: i32,
 		attributes: []Vertex_Layout,
 	} `fmt:"-"`,
 	render_state: struct {

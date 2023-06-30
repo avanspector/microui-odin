@@ -1,7 +1,8 @@
-package base_backend_opengl33core
+package base_backend_gles2
 
-import "../../../rdr/base"
 import gl "vendor:opengl"
+
+import "../../base"
 
 Handle  :: base.Handle
 Buffer  :: base.Buffer
@@ -73,11 +74,11 @@ create_buffer :: proc(buffer: Buffer) -> Handle(Buffer) {
 		using buffer
 
 		BufferData(buf_usage, 
-			len(initial_data) if len(initial_data) > 0 else int(byte_width), 
+			len(initial_data) if len(initial_data) > 0 else int(byte_stride), 
 			raw_data(initial_data), gl_memory_model[memory_model])
 
 		if usage == .UNIFORM {
-			BindBufferRange(buf_usage, 0, id, 0, int(byte_width))
+			BindBufferRange(buf_usage, 0, id, 0, int(byte_stride))
 		}
 	}
 	handle := base.add_resource(buffer)
@@ -147,7 +148,7 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 	LinkProgram(prog)
 	{
 		succ: i32
-		GetProgramiv(prog, LINK_STATUS, &succ);
+		GetProgramiv(prog, LINK_STATUS, &succ)
 		if succ == 0 do panic("Shader program is not linked")
 	}
 
@@ -178,7 +179,7 @@ create_shader :: proc(shader: Shader) -> Handle(Shader) {
 					type_size = size_of(f32)
 				}
 				VertexAttribPointer(attr_idx, base.data_sizes[attr.format]/type_size, 
-						data_type, FALSE, buf_layout.byte_width, uintptr(attr.offset))
+						data_type, FALSE, buf_layout.byte_stride, uintptr(attr.offset))
 				EnableVertexAttribArray(attr_idx)
 				attr_idx += 1
 			}
@@ -220,13 +221,15 @@ bind_group_to_shader :: proc(bind_group: Bind_Group, prog: u32) {
 	for ubo, i in bind_group.uniforms {
 		buffer := base.get_resource(ubo)
 		if buffer == nil do panic("UBO is nil")
+		buf_name := buffer.name
 
-		uniform_block_index := GetUniformBlockIndex(prog, buffer.name)
+		uniform_block_index := GetUniformBlockIndex(prog, buf_name)
 		UniformBlockBinding(prog, uniform_block_index, u32(i))
 	}
 	
 	for tex, i in bind_group.textures {
-		tex_name := base.get_resource(tex).name
+		texture := base.get_resource(tex)
+		tex_name := texture.name
 		ActiveTexture(TEXTURE0 + u32(i))
 		BindTexture(TEXTURE_2D, texture_ids[tex])
 		Uniform1i(GetUniformLocation(prog, tex_name), i32(i))
@@ -268,8 +271,9 @@ draw_from_command_buffer :: proc(cmd: Command_Buffer) {
 		BindBuffer(gl_buffer_usage[.VERTEX], cache.vbo)
 		defer BindBuffer(gl_buffer_usage[.VERTEX], 0)
 
-		BufferSubData(gl_buffer_usage[.VERTEX], 0, 
-				len(cmd.vertex_data), raw_data(cmd.vertex_data))
+		BufferSubData(gl_buffer_usage[.VERTEX], 
+		              0, len(cmd.vertex_data), 
+		              raw_data(cmd.vertex_data))
 	}
 
 	if uniform_buffer, ok := cmd.uniform_buffer.?; ok {

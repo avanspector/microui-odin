@@ -5,7 +5,9 @@ import "base"
 RDR_GL :: #config(RDR_GL, "gl33core")
 
 when RDR_GL == "gl33core" {
-	import backend "backend/opengl33core"
+	import backend "backend/gl33core"
+} else when RDR_GL == "directx11" {
+	import backend "backend/directx11"
 } else {
 	#panic("[COMPILE ERROR] Unknown GL backend.")
 }
