@@ -149,7 +149,7 @@ render_cubes :: proc() {
 		uniform_data = slice.bytes_from_ptr(&uniforms, size_of(uniforms)),
 	})
 
-	fmt.println("RENDER OF RENDER", base.bind_groups_pool[:1])
+	fmt.println("END OF RENDER", base.bind_groups_pool[:1])
 }
 
 cubeVertices := [?]f32 {
